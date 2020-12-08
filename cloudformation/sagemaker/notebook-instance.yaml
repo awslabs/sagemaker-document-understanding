@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  (SA0014) -
+  sagemaker-document-understanding:
+  Stack for sagemaker notebook instance resources.
+  Version 1
+
+Parameters:
+  SolutionPrefix:
+    Type: String
+  ParentStackName:
+    Type: String
+  SolutionName:
+    Type: String
+  StackVersion:
+    Type: String
+  S3BucketName:
+    Type: String
+  NotebookInstanceExecutionRoleArn:
+    Type: String
+  NotebookInstanceType:
+    Type: String
+  TrainingInstanceType:
+    Type: String
+  HostingInstanceType:
+    Type: String
+
+Mappings:
+  SolutionsS3BucketName:
+    development:
+      Prefix: "sagemaker-solutions-devo"
+    release:
+      Prefix: "sagemaker-solutions-prod"
+
+Resources:
+  BasicNotebookInstance:
+    Type: 'AWS::SageMaker::NotebookInstance'
+    Properties:
+      InstanceType: !Ref NotebookInstanceType
+      NotebookInstanceName: !Sub "${SolutionPrefix}-notebook-instance"
+      RoleArn: !Ref NotebookInstanceExecutionRoleArn
+      LifecycleConfigName: !GetAtt
+        - BasicNotebookInstanceLifecycleConfig
+        - NotebookInstanceLifecycleConfigName
+      VolumeSizeInGB: 50
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W1201
+            reason: Solution does not have KMS encryption enabled by default
+
+  BasicNotebookInstanceLifecycleConfig:
+    Type: 'AWS::SageMaker::NotebookInstanceLifecycleConfig'
+    Properties:
+      NotebookInstanceLifecycleConfigName: !Sub "${SolutionPrefix}-nb-lifecycle-config"
+      OnCreate:
+        - Content:
+            Fn::Base64: !Sub
+              - |
+                set -e
+                # perform following actions as ec2-user
+                sudo -u ec2-user -i <<EOF
+                echo "Setting directory"
+                cd /home/ec2-user/SageMaker
+                echo "Copying source files"
+                aws s3 cp s3://${SolutionsS3BucketNamePrefix}-${AWS::Region}/${SolutionName}/sagemaker_notebook_instance/ . --recursive
+                echo "Creating stack_outputs.json with stack resources that are required in notebook(s)" 
+                touch stack_outputs.json
+                echo '{' >> stack_outputs.json
+                echo '  "StackName": "${ParentStackName}",' >> stack_outputs.json
+                echo '  "SolutionPrefix": "${SolutionPrefix}",' >> stack_outputs.json
+                echo '  "SolutionName": "${SolutionName}",' >> stack_outputs.json
+                echo '  "AwsAccountId": "${AWS::AccountId}",' >> stack_outputs.json
+                echo '  "AwsRegion": "${AWS::Region}",' >> stack_outputs.json
+                echo '  "IamRole": "${NotebookInstanceExecutionRoleArn}",' >> stack_outputs.json
+                echo '  "S3Bucket": "${S3BucketName}",' >> stack_outputs.json
+                echo '  "SolutionsS3Bucket": "${SolutionsS3BucketNamePrefix}-${AWS::Region}",' >> stack_outputs.json
+                echo '  "TrainingInstanceType": "${TrainingInstanceType}",' >> stack_outputs.json
+                echo '  "HostingInstanceType": "${HostingInstanceType}",' >> stack_outputs.json
+                echo '  "SagemakerMode": "NotebookInstance"' >> stack_outputs.json
+                echo '}' >> stack_outputs.json
+                echo "stack_outputs.json created:"
+                cat stack_outputs.json
+                EOF
+              - SolutionsS3BucketNamePrefix:
+                  Fn::FindInMap: [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+      OnStart:
+        - Content:
+            Fn::Base64: |
+              set -e
+              # perform following actions as ec2-user
+              sudo -u ec2-user -i <<EOF
+              echo "Setting directory"
+              cd /home/ec2-user/SageMaker
+              echo "Creating a sagemaker-soln environment"
+              conda env create -f environment.lock.yml
+              echo "Activating sagemaker-soln environment"
+              source activate sagemaker-soln
+              echo "Adding ipykernel for sagemaker-soln environment"
+              python -m ipykernel install --user --name sagemaker-soln --display-name "sagemaker-soln"
+              EOF
+Outputs:
+  SageMakerNotebook:
+    Description: URL to notebooks on the Amazon SageMaker Notebook Instance.
+    Value: !Sub "https://${BasicNotebookInstance.NotebookInstanceName}.notebook.${AWS::Region}.sagemaker.aws/tree/notebooks"

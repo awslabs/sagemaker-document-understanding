@@ -1,0 +1,13 @@
+buildspec.yml
+.viperlightignore
+.viperlightrc
+build
+build.sh
+site-packages
+codebuild
+codepipeline
+smsolutions-SA00014.md
+metadata/
+sagemaker_studio/
+models/
+data/

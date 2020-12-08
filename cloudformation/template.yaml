@@ -1,0 +1,297 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  (SA0014) -
+  sagemaker-document-understanding:
+  Used as root template for 'document understanding' stack.
+  Version 1
+Parameters:
+  SolutionPrefix:
+    Type: String
+    Description: |
+      Used to name resources created as part of this stack (and inside nested stacks too).
+      Can be the same as the stack name used by AWS CloudFormation, but this field has extra
+      constraints because it's used to name resources with restrictions (e.g. Amazon S3 bucket
+      names cannot contain capital letters).
+    AllowedPattern: '^sagemaker-soln-documents[a-z0-9\-]{0,15}$'
+    ConstraintDescription: Only allowed to use lowercase letters, hyphens and/or numbers. Should start with 'sagemaker-soln-documents-' for permission management. Should be 39 characters or less.
+    Default: "sagemaker-soln-documents"
+  CreateSageMakerNotebookInstance:
+    Description: Create a SageMaker Notebook Instance as part of the stack?
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  IamRole:
+    Type: String
+    Default: ""
+    Description: |
+      The ARN of the IAM Role that will be attached to the resources created by this stack to grant them permissions to
+      perform their required functions. If left blank, the template will attempt to create a role for you.
+      That could cause a stack creation error if you don't have privileges to create new roles.
+  StackVersion:
+    Description: |
+      CloudFormation Stack version.
+      Use 'release' version unless you are customizing the
+      CloudFormation templates and solution artifacts.
+    Type: String
+    Default: release
+    AllowedValues:
+      - release
+      - development
+  SolutionName:
+    Description: |
+      Prefix for the solution name. Needs to be Document-understanding
+      or begin with 'Document-understanding-' followed by a set of letters and hyphens.
+      Used to specify a particular directory on S3, that can correspond to a development branch.
+    Type: String
+    Default: "Document-understanding"
+    AllowedPattern: '^Document-understanding-?[a-z\-]*$'
+
+Mappings:
+  SolutionsS3BucketName:
+    development:
+      Prefix: "sagemaker-solutions-devo"
+    release:
+      Prefix: "sagemaker-solutions-prod"
+  NotebookInstanceType:
+    af-south-1:
+      Type: "ml.t3.medium"
+    ap-east-1:
+      Type: "ml.t3.medium"
+    ap-northeast-1:
+      Type: "ml.t3.medium"
+    ap-northeast-2:
+      Type: "ml.t2.medium"
+    ap-south-1:
+      Type: "ml.t2.medium"
+    ap-southeast-1:
+      Type: "ml.t3.medium"
+    ap-southeast-2:
+      Type: "ml.t3.medium"
+    ca-central-1:
+      Type: "ml.t3.medium"
+    eu-central-1:
+      Type: "ml.t3.medium"
+    eu-north-1:
+      Type: "ml.t3.medium"
+    eu-south-1:
+      Type: "ml.t3.medium"
+    eu-west-1:
+      Type: "ml.t3.medium"
+    eu-west-2:
+      Type: "ml.t3.medium"
+    eu-west-3:
+      Type: "ml.t3.medium"
+    me-south-1:
+      Type: "ml.t3.medium"
+    sa-east-1:
+      Type: "ml.t3.medium"
+    us-east-1:
+      Type: "ml.t3.medium"
+    us-east-2:
+      Type: "ml.t3.medium"
+    us-west-1:
+      Type: "ml.t3.medium"
+    us-west-2:
+      Type: "ml.t3.medium"
+  TrainingInstanceType:
+    af-south-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-east-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-northeast-1:
+      Type: "ml.p3.2xlarge"
+    ap-northeast-2:
+      Type: "ml.p3.2xlarge"
+    ap-south-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-southeast-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-southeast-2:
+      Type: "ml.g4dn.2xlarge"
+    ca-central-1:
+      Type: "ml.g4dn.2xlarge"
+    cn-north-1:
+      Type: "ml.p3.2xlarge"
+    cn-northwest-1:
+      Type: "ml.p3.2xlarge"
+    eu-central-1:
+      Type: "ml.p3.2xlarge"
+    eu-north-1:
+      Type: "ml.g4dn.2xlarge"
+    eu-south-1:
+      Type: "ml.g4dn.2xlarge"
+    eu-west-1:
+      Type: "ml.p3.2xlarge"
+    eu-west-2:
+      Type: "ml.p3.2xlarge"
+    eu-west-3:
+      Type: "ml.g4dn.2xlarge"
+    me-south-1:
+      Type: "ml.g4dn.2xlarge"
+    sa-east-1:
+      Type: "ml.g4dn.2xlarge"
+    us-east-1:
+      Type: "ml.p3.2xlarge"
+    us-east-2:
+      Type: "ml.p3.2xlarge"
+    us-west-1:
+      Type: "ml.g4dn.2xlarge"
+    us-west-2:
+      Type: "ml.p3.2xlarge"
+  HostingInstanceType:
+    af-south-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-east-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-northeast-1:
+      Type: "ml.p3.2xlarge"
+    ap-northeast-2:
+      Type: "ml.p3.2xlarge"
+    ap-south-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-southeast-1:
+      Type: "ml.g4dn.2xlarge"
+    ap-southeast-2:
+      Type: "ml.g4dn.2xlarge"
+    ca-central-1:
+      Type: "ml.g4dn.2xlarge"
+    cn-north-1:
+      Type: "ml.p3.2xlarge"
+    cn-northwest-1:
+      Type: "ml.p3.2xlarge"
+    eu-central-1:
+      Type: "ml.p3.2xlarge"
+    eu-north-1:
+      Type: "ml.g4dn.2xlarge"
+    eu-south-1:
+      Type: "ml.g4dn.2xlarge"
+    eu-west-1:
+      Type: "ml.p3.2xlarge"
+    eu-west-2:
+      Type: "ml.p3.2xlarge"
+    eu-west-3:
+      Type: "ml.g4dn.2xlarge"
+    me-south-1:
+      Type: "ml.g4dn.2xlarge"
+    sa-east-1:
+      Type: "ml.g4dn.2xlarge"
+    us-east-1:
+      Type: "ml.p3.2xlarge"
+    us-east-2:
+      Type: "ml.p3.2xlarge"
+    us-west-1:
+      Type: "ml.g4dn.2xlarge"
+    us-west-2:
+      Type: "ml.p3.2xlarge"
+
+Conditions:
+  CreateSageMakerNotebookInstance: !Equals [ !Ref CreateSageMakerNotebookInstance, 'true' ]
+  CreateCustomSolutionRole: !Equals [!Ref IamRole, ""]
+Resources:
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub ${SolutionPrefix}-${AWS::Region}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          -
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: Avoids user having to manually create an Amazon S3 bucket for logs.
+          - id: W51
+            reason: Current default access policy is sufficient.
+
+  SolutionAssistantStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Sub
+      - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/cloudformation/solution-assistant/solution-assistant.yaml"
+      - SolutionsS3BucketNamePrefix:
+          Fn::FindInMap: [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        SolutionName: !Ref SolutionName
+        StackName: !Ref AWS::StackName
+        S3BucketName: !Ref S3Bucket
+        SolutionsS3BucketName: !Sub
+          - ${SolutionsS3BucketNamePrefix}-${AWS::Region}
+          - SolutionsS3BucketNamePrefix:
+              Fn::FindInMap: [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+        RoleArn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+
+  SageMakerStack:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: CreateSageMakerNotebookInstance
+    Properties:
+      TemplateURL: !Sub
+      - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/cloudformation/sagemaker/notebook-instance.yaml"
+      - SolutionsS3BucketNamePrefix:
+          Fn::FindInMap: [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        ParentStackName: !Ref AWS::StackName
+        SolutionName: !Ref SolutionName
+        StackVersion: !Ref StackVersion
+        S3BucketName: !Ref S3Bucket
+        NotebookInstanceExecutionRoleArn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+        NotebookInstanceType: !FindInMap [NotebookInstanceType, !Ref "AWS::Region", Type]
+        TrainingInstanceType: !FindInMap [TrainingInstanceType, !Ref "AWS::Region", Type]
+        HostingInstanceType: !FindInMap [HostingInstanceType, !Ref "AWS::Region", Type]
+
+  SageMakerPermissionsStack:
+    Type: "AWS::CloudFormation::Stack"
+    Condition: CreateCustomSolutionRole
+    Properties:
+      TemplateURL: !Sub
+      - "https://${SolutionsS3BucketNamePrefix}-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/${SolutionName}/cloudformation/permissions.yaml"
+      - SolutionsS3BucketNamePrefix:
+          !FindInMap [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        S3BucketName: !Ref S3Bucket
+        StackVersion: !Ref StackVersion
+
+Outputs:
+  SageMakerNotebook:
+    Condition: CreateSageMakerNotebookInstance
+    Description: "Opens the Jupyter notebook to get started with model training"
+    Value: !GetAtt SageMakerStack.Outputs.SageMakerNotebook
+  StackName:
+    Value: !Ref AWS::StackName
+  SolutionPrefix:
+    Value: !Ref SolutionPrefix
+  SolutionName:
+    Value: !Ref SolutionName
+  AwsAccountId:
+    Value: !Ref AWS::AccountId
+  AwsRegion:
+    Value: !Ref AWS::Region
+  IamRole:
+    Value: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
+  S3Bucket:
+    Value: !Ref S3Bucket
+  SolutionsS3Bucket:
+    Value: !Sub
+      - "${SolutionsS3BucketNamePrefix}-${AWS::Region}"
+      - SolutionsS3BucketNamePrefix:
+          !FindInMap [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+  SagemakerMode:
+    Value: !If
+      - CreateSageMakerNotebookInstance
+      - "NotebookInstance"
+      - "Studio"
+  TrainingInstanceType:
+    Value: !FindInMap [TrainingInstanceType, !Ref "AWS::Region", Type]
+  HostingInstanceType:
+    Value: !FindInMap [HostingInstanceType, !Ref "AWS::Region", Type]

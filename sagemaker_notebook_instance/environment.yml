@@ -1,0 +1,20 @@
+name: sagemaker-soln
+channels:
+  - pytorch
+  - conda-forge
+  - anaconda
+dependencies:
+  # base
+  - python=3.7
+  - pip
+  - ipykernel
+  - jupyter_kernel_gateway
+  - anaconda
+  - sagemaker-python-sdk==1.*
+  - awscli>=1.18.140
+  - tqdm
+  # pytorch base
+  - pytorch
+  - cpuonly
+  # document understanding
+  - transformers

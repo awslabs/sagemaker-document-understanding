@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  (SA0014) -
+  sagemaker-document-understanding:
+  Stack for solution assistant resources.
+  Version 1
+
+Parameters:
+  SolutionPrefix:
+    Description: The name of the prefix for the solution used for naming resources
+    Type: String
+  S3BucketName:
+    Description: The name of the S3 bucket for the solution
+    Type: String
+  StackVersion:
+    Description: The name of the template stack version
+    Type: String
+
+Mappings:
+  SolutionsS3BucketName:
+    development:
+      Prefix: "sagemaker-solutions-devo"
+    release:
+      Prefix: "sagemaker-solutions-prod"
+
+Resources:
+  NotebookInstanceExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub "${SolutionPrefix}-${AWS::Region}-nb-role"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Needs to be explicitly named to tighten launch permissions policy
+  NotebookInstanceIAMPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub "${SolutionPrefix}-nb-instance-policy"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+            Resource:
+              - !Sub
+                - "arn:aws:s3:::${SolutionsS3BucketNamePrefix}-${AWS::Region}"
+                - SolutionsS3BucketNamePrefix:
+                    Fn::FindInMap: [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub
+                - "arn:aws:s3:::${SolutionsS3BucketNamePrefix}-${AWS::Region}/*"
+                - SolutionsS3BucketNamePrefix:
+                    Fn::FindInMap: [SolutionsS3BucketName, Ref: StackVersion, Prefix]
+          - Effect: Allow
+            Action:
+              - s3:AbortMultipartUpload
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource:
+                - !Sub "arn:aws:s3:::${S3BucketName}/*"
+          - Effect: Allow
+            Action:
+              - s3:ListBucket
+              - s3:DeleteBucket
+              - s3:GetBucketLocation
+              - s3:ListBucketMultipartUploads
+            Resource:
+              - !Sub "arn:aws:s3:::${S3BucketName}"
+          - Effect: Allow
+            Action:
+              - 'sagemaker:InvokeEndpoint'
+            Resource:
+              - 'arn:aws:sagemaker:*:*:endpoint/*'
+          - Effect: Allow
+            Action:
+              - 'sagemaker:CreateTrainingJob'
+              - 'sagemaker:DescribeTrainingJob'
+              - 'sagemaker:CreateModel'
+              - 'sagemaker:DescribeModel'
+              - 'sagemaker:DeleteModel'
+              - 'sagemaker:CreateEndpoint'
+              - 'sagemaker:CreateEndpointConfig'
+              - 'sagemaker:DescribeEndpoint'
+              - 'sagemaker:DescribeEndpointConfig'
+              - 'sagemaker:DeleteEndpoint'
+              - 'sagemaker:DeleteEndpointConfig'
+              - 'sagemaker:InvokeEndpoint'
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:sagemaker:'
+                  - !Ref 'AWS::Region'
+                  - ':'
+                  - !Ref 'AWS::AccountId'
+                  - ':*'
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+            Resource:
+              - "*"
+          - Effect: Allow
+            Action:
+              - 'ecr:GetDownloadUrlForLayer'
+              - 'ecr:BatchGetImage'
+              - 'ecr:BatchCheckLayerAvailability'
+            Resource:
+              - !Sub "arn:aws:ecr:${AWS::Region}:*:repository/pytorch-training"
+              - !Sub "arn:aws:ecr:${AWS::Region}:*:repository/pytorch-inference"
+          - Effect: Allow
+            Action:
+              - 'cloudwatch:PutMetricData'
+              - 'cloudwatch:GetMetricData'
+              - 'cloudwatch:GetMetricStatistics'
+              - 'cloudwatch:ListMetrics'
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:cloudwatch:'
+                  - !Ref 'AWS::Region'
+                  - ':'
+                  - !Ref 'AWS::AccountId'
+                  - ':*'
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:DescribeLogStreams'
+              - 'logs:GetLogEvents'
+              - 'logs:PutLogEvents'
+            Resource: !Join
+              - ''
+              - - 'arn:aws:logs:'
+                - !Ref 'AWS::Region'
+                - ':'
+                - !Ref 'AWS::AccountId'
+                - ':log-group:/aws/sagemaker/*'
+          - Effect: Allow
+            Action:
+              - 'iam:PassRole'
+            Resource:
+              - !GetAtt
+                - NotebookInstanceExecutionRole
+                - Arn
+            Condition:
+              StringEquals:
+                'iam:PassedToService': sagemaker.amazonaws.com
+          - Effect: Allow
+            Action:
+              - 'iam:GetRole'
+            Resource:
+              - !GetAtt
+                - NotebookInstanceExecutionRole
+                - Arn
+      Roles:
+        - !Ref NotebookInstanceExecutionRole
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: >-
+              This policy needs to have * resource because some of the resources
+              are created dynamically and some of its actions are * resource
+              actions
+
+Outputs:
+  SageMakerRoleArn:
+    Description: "SageMaker Execution Role for the solution"
+    Value: !GetAtt NotebookInstanceExecutionRole.Arn

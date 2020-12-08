@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Stack for solution assistant resources.
+
+Parameters:
+  SolutionPrefix:
+    Description: Used as a prefix for resources.
+    Type: String
+  SolutionName:
+    Description: The name of the solution, used as an S3 prefix
+    Type: String
+  StackName:
+    Description: |
+      Used as a prefix to name all stack resources.
+      Should be root stack's name if this is a nested stack.
+    Type: String
+  S3BucketName:
+    Description: Amazon S3 Bucket used to store trained model and data.
+    Type: String
+  SolutionsS3BucketName:
+    Description: Amazon S3 Bucket containing solutions.
+    Type: String
+  RoleArn:
+    Description: The ARN of the role to be used to clean and delete the resources.
+    Type: String
+
+Mappings:
+  Function:
+    SolutionAssistant:
+      S3Key: "build/solution-assistant.zip"
+
+Resources:
+  SolutionAssistant:
+    Type: "Custom::SolutionAssistant"
+    Properties:
+      ServiceToken: !GetAtt SolutionAssistantLambda.Arn
+      SolutionPrefix: !Ref SolutionPrefix
+      S3BucketName: !Ref S3BucketName
+      SolutionName: !Ref SolutionName
+      StackName: !Ref StackName
+      SolutionsS3BucketName: !Ref SolutionsS3BucketName
+      RoleArn: !Ref RoleArn
+  SolutionAssistantLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "lambda_function.handler"
+      FunctionName: !Sub "${SolutionPrefix}-solution-assistant"
+      Role: !Ref RoleArn
+      Runtime: "python3.8"
+      Code:
+        S3Bucket: !Ref SolutionsS3BucketName
+        S3Key: !Sub
+          - "${SolutionName}/${LambdaS3Key}"
+          - LambdaS3Key:
+              Fn::FindInMap: [Function, SolutionAssistant, S3Key]
+      Timeout : 60
+    Metadata:
+        cfn_nag:
+          rules_to_suppress:
+            - id: W58
+              reason: >-
+                The required permissions are provided in the permissions stack.

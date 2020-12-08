@@ -1,0 +1,2 @@
+transformers
+sagemaker==1.71.0
